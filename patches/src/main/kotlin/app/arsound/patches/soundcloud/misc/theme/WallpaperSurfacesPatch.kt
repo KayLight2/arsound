@@ -26,12 +26,51 @@ import com.android.tools.smali.dexlib2.iface.instruction.RegisterRangeInstructio
 
 private const val SURFACES = "Lapp/revanced/extension/soundcloud/wallpaper/WallpaperSurfaces;"
 private const val COLORS = "Lcom/soundcloud/android/ui/components/compose/Colors;"
+private const val PANEL_CARDS = "Lapp/revanced/extension/soundcloud/theme/PanelCards;"
 
 /** A small track cell of a Compose list (the likes, a playlist): {@code CellSmallTrackKt.b}. */
 private val BytecodePatchContext.composeSmallTrackCellMethod by gettingFirstMethodDeclaratively {
     definingClass("Lcom/soundcloud/android/ui/components/compose/listviews/track/CellSmallTrackKt;")
     name("b")
     returnType("V")
+}
+
+private fun MutableMethod.wrapComposeCardBefore(
+    targetClass: String,
+    targetMethod: String,
+    paramIndex: Int = 0,
+) {
+    val callIndex = implementation?.instructions?.indexOfFirst {
+        (it.opcode == Opcode.INVOKE_STATIC || it.opcode == Opcode.INVOKE_STATIC_RANGE) && it.methodReference?.let { ref ->
+            ref.definingClass == targetClass && ref.name == targetMethod
+        } == true
+    } ?: -1
+    if (callIndex < 0) return
+
+    val instruction = getInstruction<Instruction>(callIndex)
+    val modReg = if (instruction is FiveRegisterInstruction) {
+        when (paramIndex) {
+            0 -> instruction.registerC
+            1 -> instruction.registerD
+            2 -> instruction.registerE
+            3 -> instruction.registerF
+            4 -> instruction.registerG
+            else -> throw PatchException("Unsupported param index $paramIndex")
+        }
+    } else if (instruction is RegisterRangeInstruction) {
+        instruction.startRegister + paramIndex
+    } else {
+        throw PatchException("Unexpected instruction type for call to $targetClass->$targetMethod: ${instruction.opcode}")
+    }
+
+    addInstructions(
+        callIndex,
+        """
+            invoke-static/range { v$modReg .. v$modReg }, $PANEL_CARDS->wrapComposeCard(Ljava/lang/Object;)Ljava/lang/Object;
+            move-result-object v$modReg
+            check-cast v$modReg, Landroidx/compose/ui/Modifier;
+        """,
+    )
 }
 
 /** The first parameters of the content lambda the Compose cell makes: clickable, click, playable, height, end content. */
@@ -422,6 +461,97 @@ val wallpaperSurfacesPatch = bytecodePatch {
         SURFACE_BANDS.forEach { type ->
             val replaced = firstClassDef(type).methods.sumOf { it.replaceSurfaceColours(surfaceName) }
             if (replaced == 0) throw PatchException("$type has no surface colour any more")
+        }
+
+        // Wrap compose track and settings cells into customizable translucent cards with rounded outline
+        val actionListHooks = listOf(
+            Triple(
+                "Lcom/soundcloud/android/ui/components/compose/actionlists/ActionListItemKt;",
+                "Landroidx/compose/foundation/layout/SizeKt;",
+                "height-3ABfNKs",
+            ),
+            Triple(
+                "Lcom/soundcloud/android/ui/components/compose/actionlists/ActionListStandardKt;",
+                "Landroidx/compose/foundation/layout/SizeKt;",
+                "heightIn-VpY3zN4\$default",
+            ),
+            Triple(
+                "Lcom/soundcloud/android/ui/components/compose/actionlists/ActionListToggleKt;",
+                "Landroidx/compose/foundation/layout/SizeKt;",
+                "heightIn-VpY3zN4\$default",
+            ),
+            Triple(
+                "Lcom/soundcloud/android/ui/components/compose/actionlists/ActionListSelectableKt;",
+                "Landroidx/compose/foundation/layout/SizeKt;",
+                "heightIn-VpY3zN4\$default",
+            ),
+            Triple(
+                "Lcom/soundcloud/android/ui/components/compose/actionlists/ActionListItemWithHelperKt;",
+                "Landroidx/compose/foundation/layout/SizeKt;",
+                "heightIn-VpY3zN4\$default",
+            ),
+        )
+        for ((targetClass, callClass, callMethod) in actionListHooks) {
+            val classDef = firstClassDef(targetClass)
+            val method = classDef.methods.firstOrNull { it.name == "a" } ?: continue
+            method.wrapComposeCardBefore(callClass, callMethod, 0)
+        }
+
+        val listCellHooks = listOf(
+            Triple(
+                "Lcom/soundcloud/android/ui/components/compose/listviews/SwipeCellKt;",
+                "Landroidx/compose/foundation/layout/SizeKt;",
+                "fillMaxWidth\$default",
+            ),
+            Triple(
+                "Lcom/soundcloud/android/ui/components/compose/listviews/playlist/CellSmallPlaylistKt;",
+                "Landroidx/compose/foundation/layout/SizeKt;",
+                "fillMaxWidth\$default",
+            ),
+            Triple(
+                "Lcom/soundcloud/android/ui/components/compose/listviews/playlist/CellMicroPlaylistKt;",
+                "Landroidx/compose/foundation/layout/SizeKt;",
+                "fillMaxWidth\$default",
+            ),
+            Triple(
+                "Lcom/soundcloud/android/ui/components/compose/listviews/user/CellSmallUserKt;",
+                "Landroidx/compose/foundation/layout/SizeKt;",
+                "fillMaxWidth\$default",
+            ),
+            Triple(
+                "Lcom/soundcloud/android/ui/components/compose/listviews/user/CellMicroUserKt;",
+                "Landroidx/compose/foundation/layout/SizeKt;",
+                "fillMaxWidth\$default",
+            ),
+            Triple(
+                "Lcom/soundcloud/android/ui/components/compose/listviews/track/CellSlideTrackKt;",
+                "Landroidx/compose/foundation/ClickableKt;",
+                "clickable-oSLSa3U\$default",
+            ),
+        )
+        for ((targetClass, callClass, callMethod) in listCellHooks) {
+            val classDef = firstClassDef(targetClass)
+            val method = classDef.methods.firstOrNull { it.name == "a" } ?: continue
+            method.wrapComposeCardBefore(callClass, callMethod, 0)
+        }
+
+        // View-based track cells (fallback when Views are used instead of Compose)
+        val viewTrackClasses = listOf(
+            "Lcom/soundcloud/android/ui/components/listviews/track/CellSmallTrack;",
+            "Lcom/soundcloud/android/ui/components/listviews/track/CellMicroTrack;",
+        )
+        for (targetClass in viewTrackClasses) {
+            val classDef = firstClassDef(targetClass)
+            val nMethod = classDef.methods.firstOrNull { it.name == "n" } ?: continue
+            val setBgIndex = nMethod.implementation?.instructions?.indexOfFirst {
+                it.opcode == Opcode.INVOKE_VIRTUAL && it.methodReference?.name == "setBackgroundResource"
+            } ?: -1
+            if (setBgIndex >= 0) {
+                nMethod.addInstruction(
+                    setBgIndex + 1,
+                    "invoke-static { p0 }, $PANEL_CARDS->styleLibraryRow(Landroid/view/View;)V",
+                )
+            }
         }
     }
 }

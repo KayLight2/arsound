@@ -402,6 +402,25 @@ public final class Settings {
      */
     public static final String WALLPAPER_SOURCE = "arsound_wallpaper_source";
 
+    /** Corner radius of cards and panels over the wallpaper in dp (8, 12, 16, 20, 24). Default is 16. */
+    public static final String WALLPAPER_CARDS_RADIUS = "arsound_wallpaper_cards_radius";
+    /** Border stroke style of cards and panels over the wallpaper (0 = accent, 1 = white matte, 2 = none). Default is 0. */
+    public static final String WALLPAPER_CARDS_STROKE = "arsound_wallpaper_cards_stroke";
+    /** Opacity of cards and panels background fill in percent (80, 55, 30, 0). Default is 80. */
+    public static final String WALLPAPER_CARDS_OPACITY = "arsound_wallpaper_cards_opacity";
+
+    public static int getWallpaperCardsRadius() {
+        return (int) getLong(WALLPAPER_CARDS_RADIUS, 16L);
+    }
+
+    public static int getWallpaperCardsStroke() {
+        return (int) getLong(WALLPAPER_CARDS_STROKE, 0L);
+    }
+
+    public static int getWallpaperCardsOpacity() {
+        return (int) getLong(WALLPAPER_CARDS_OPACITY, 80L);
+    }
+
     public static final String HIDE_HEADER_ARTWORK = "hide_header_artwork";
     public static final String HIDE_HOME_GREETING = "hide_home_greeting";
 

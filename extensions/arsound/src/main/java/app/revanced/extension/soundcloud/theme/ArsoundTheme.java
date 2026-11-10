@@ -188,6 +188,9 @@ public final class ArsoundTheme {
      */
     public static int libraryRowIcon(View row) {
         try {
+            if (row != null) {
+                PanelCards.styleLibraryRow(row);
+            }
             if (row.getId() == View.NO_ID) return 0;
             return libraryRowIcon(row.getResources().getResourceEntryName(row.getId()).replace("library_header_", ""));
         } catch (Exception ex) {

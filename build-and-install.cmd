@@ -39,6 +39,7 @@ goto arguments
 rem Signing works only under this JDK: under others (Oracle 21.0.5, 18) revanced-cli fails with "Invalid password for keystore
 rem entry Arsound" although the password is right. So it is used even when JAVA_HOME already points somewhere else.
 set "SIGN_JDK=C:\Program Files\Eclipse Adoptium\jdk-21.0.6.7-hotspot"
+if exist "%LOCALAPPDATA%\Programs\Eclipse Adoptium\jdk-21.0.13.9-hotspot\bin\java.exe" set "SIGN_JDK=%LOCALAPPDATA%\Programs\Eclipse Adoptium\jdk-21.0.13.9-hotspot"
 if exist "%SIGN_JDK%\bin\java.exe" set "JAVA_HOME=%SIGN_JDK%"
 if not defined JAVA_HOME set "JAVA_HOME=%SIGN_JDK%"
 if not defined ANDROID_HOME set "ANDROID_HOME=%LOCALAPPDATA%\Android\Sdk"
@@ -76,8 +77,20 @@ if not exist "%APK_IN%" (
 )
 
 rem GitHub Packages access for the ReVanced Gradle plugin (token needs read:packages).
-for /f "delims=" %%t in ('gh auth token') do set "ORG_GRADLE_PROJECT_githubPackagesPassword=%%t"
-for /f "delims=" %%u in ('gh api user --jq .login') do set "ORG_GRADLE_PROJECT_githubPackagesUsername=%%u"
+if defined GITHUB_TOKEN (
+  set "ORG_GRADLE_PROJECT_githubPackagesPassword=%GITHUB_TOKEN%"
+  if defined GITHUB_PACKAGES_USERNAME (
+    set "ORG_GRADLE_PROJECT_githubPackagesUsername=%GITHUB_PACKAGES_USERNAME%"
+  ) else (
+    set "ORG_GRADLE_PROJECT_githubPackagesUsername=KayLight2"
+  )
+) else (
+  where gh >nul 2>nul
+  if not errorlevel 1 (
+    for /f "delims=" %%t in ('gh auth token 2^>nul') do set "ORG_GRADLE_PROJECT_githubPackagesPassword=%%t"
+    for /f "delims=" %%u in ('gh api user --jq .login 2^>nul') do set "ORG_GRADLE_PROJECT_githubPackagesUsername=%%u"
+  )
+)
 
 call "%~dp0gradlew.bat" :patches:buildAndroid --console=plain || exit /b 1
 

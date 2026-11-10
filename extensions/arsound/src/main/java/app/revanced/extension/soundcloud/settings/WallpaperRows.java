@@ -116,6 +116,7 @@ final class WallpaperRows {
             empty.setPadding(ui.dimen("spacing_m"), ui.dp(4), ui.dimen("spacing_m"), ui.dp(4));
             list.addView(empty);
         }
+        list.addView(createCardsSettingsCard());
         addButtons(list, chosen);
     }
 
@@ -194,6 +195,78 @@ final class WallpaperRows {
         });
         card.addView(scroller);
         card.addView(description);
+        return card;
+    }
+
+    /**
+     * Customization settings for the translucent rounded cards and outlines
+     * over the wallpaper (track cells, library rows, settings action items).
+     */
+    private View createCardsSettingsCard() {
+        String title = text("Стиль панелей и карточек", "Panel and card style");
+        ui.recordForSearch(title, text("Скругление углов, контур и прозрачность панелей треков, плейлистов, библиотеки и настроек",
+                "Corner radius, border outline and opacity for track cells, playlists, library and settings cards"));
+        SettingsGroup card = new SettingsGroup(ui);
+        card.setLayoutParams(SettingsGroup.pageParams(ui));
+
+        TextView heading = ui.createText("Body.Primary", title);
+        heading.setPadding(ui.dp(18), ui.dp(14), ui.dp(18), ui.dp(4));
+        card.addView(heading);
+
+        long[] radiusValues = new long[]{8, 12, 16, 20, 24};
+        String[] radiusLabels = new String[]{
+                text("8 dp (Слегка скруглённые)", "8 dp (Slightly rounded)"),
+                text("12 dp (Умеренные)", "12 dp (Moderate)"),
+                text("16 dp (Стандартные)", "16 dp (Standard)"),
+                text("20 dp (Скруглённые)", "20 dp (Rounded)"),
+                text("24 dp (Сильно скруглённые)", "24 dp (Heavily rounded)")
+        };
+        card.addView(ui.createChoiceRow(
+                text("Округление углов", "Corner radius"),
+                text("Скругление для списков треков, библиотеки и настроек",
+                        "Corner radius for track lists, library and settings"),
+                Settings.WALLPAPER_CARDS_RADIUS,
+                16L,
+                radiusValues,
+                radiusLabels,
+                null
+        ));
+
+        long[] strokeValues = new long[]{0, 1, 2};
+        String[] strokeLabels = new String[]{
+                text("В цвет темы (Акцентная)", "Theme accent color"),
+                text("Светлая матовая", "Light matte outline"),
+                text("Без обводки", "No outline")
+        };
+        card.addView(ui.createChoiceRow(
+                text("Обводка панелей", "Panel outline"),
+                text("Контурная рамка вокруг карточек",
+                        "Border outline around cards"),
+                Settings.WALLPAPER_CARDS_STROKE,
+                0L,
+                strokeValues,
+                strokeLabels,
+                null
+        ));
+
+        long[] opacityValues = new long[]{80, 55, 30, 0};
+        String[] opacityLabels = new String[]{
+                text("Тёмная (80%)", "Dark (80%)"),
+                text("Полупрозрачная (55%)", "Translucent (55%)"),
+                text("Лёгкая (30%)", "Light (30%)"),
+                text("Без заливки (0%)", "Transparent / None (0%)")
+        };
+        card.addView(ui.createChoiceRow(
+                text("Прозрачность карточек", "Card opacity"),
+                text("Степень прозрачности фона под карточками",
+                        "Background opacity behind cards"),
+                Settings.WALLPAPER_CARDS_OPACITY,
+                80L,
+                opacityValues,
+                opacityLabels,
+                null
+        ));
+
         return card;
     }
 
