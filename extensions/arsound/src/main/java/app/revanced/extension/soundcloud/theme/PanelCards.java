@@ -84,8 +84,7 @@ public final class PanelCards {
             ViewGroup.LayoutParams params = row.getLayoutParams();
             if (params instanceof ViewGroup.MarginLayoutParams) {
                 ViewGroup.MarginLayoutParams marginParams = (ViewGroup.MarginLayoutParams) params;
-                boolean isSlide = row.getClass().getSimpleName().contains("Slide");
-                int hMargin = Dimens.dp(context, isSlide ? 6 : 14);
+                int hMargin = Dimens.dp(context, 14);
                 int vMargin = Dimens.dp(context, 4);
                 if (marginParams.leftMargin != hMargin || marginParams.topMargin != vMargin) {
                     marginParams.leftMargin = hMargin;
@@ -107,21 +106,6 @@ public final class PanelCards {
      * @return The card-wrapped {@code Modifier}.
      */
     public static Object wrapComposeCard(Object modifierObj) {
-        return wrapComposeCardInternal(modifierObj, 14.0f, 3.0f);
-    }
-
-    /**
-     * Wraps a Compose Modifier into a rounded translucent tile for carousels and grids
-     * with compact horizontal margins.
-     *
-     * @param modifierObj The incoming {@code androidx.compose.ui.Modifier} (may be null).
-     * @return The card-wrapped {@code Modifier}.
-     */
-    public static Object wrapComposeTile(Object modifierObj) {
-        return wrapComposeCardInternal(modifierObj, 4.0f, 4.0f);
-    }
-
-    private static Object wrapComposeCardInternal(Object modifierObj, float hMargin, float vMargin) {
         if (!WallpaperStore.isActive() || !Settings.isWallpaperCardsEnabled()) {
             return modifierObj;
         }
@@ -153,8 +137,8 @@ public final class PanelCards {
                 strokeArgb = 0x44FFFFFF;
             }
 
-            // Outer margin
-            Object padded = composePaddingMethod.invoke(null, modifierObj, hMargin, vMargin);
+            // Outer margin: 14dp horizontal, 3dp vertical
+            Object padded = composePaddingMethod.invoke(null, modifierObj, 14.0f, 3.0f);
 
             // Shape: RoundedCornerShape(radius)
             Object shape = composeShapeMethod.invoke(null, (float) radius);
