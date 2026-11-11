@@ -23,6 +23,7 @@ import com.android.tools.smali.dexlib2.iface.instruction.FiveRegisterInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.Instruction
 import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.RegisterRangeInstruction
+import com.android.tools.smali.dexlib2.iface.instruction.TwoRegisterInstruction
 
 private const val SURFACES = "Lapp/revanced/extension/soundcloud/wallpaper/WallpaperSurfaces;"
 private const val COLORS = "Lcom/soundcloud/android/ui/components/compose/Colors;"
@@ -554,6 +555,74 @@ val wallpaperSurfacesPatch = bytecodePatch {
             }
         }
 
+        // Home screen shortcut tiles (top 2x2 grid)
+        val shortcutClasses = listOf(
+            Pair("Lcom/soundcloud/android/sections/ui/components/ShortcutsKt;", "d"),
+            Pair("Lcom/soundcloud/android/sdui/components/composables/shortcuts/ShortcutItemKt;", "a"),
+        )
+        for ((targetClass, targetMethod) in shortcutClasses) {
+            val classDef = firstClassDef(targetClass)
+            val method = classDef.methods.firstOrNull { it.name == targetMethod } ?: continue
+            val bgIndex = method.implementation?.instructions?.indexOfFirst {
+                it.opcode == Opcode.INVOKE_STATIC && it.methodReference?.let { ref ->
+                    ref.definingClass == "Landroidx/compose/foundation/BackgroundKt;" && ref.name == "background-bw27NRU"
+                } == true
+            } ?: -1
+            if (bgIndex >= 0) {
+                val inst = method.getInstruction<FiveRegisterInstruction>(bgIndex)
+                method.replaceInstruction(
+                    bgIndex,
+                    "invoke-static { v${inst.registerC}, v${inst.registerD}, v${inst.registerE}, v${inst.registerF} }, $PANEL_CARDS->styleShortcutBackground(Landroidx/compose/ui/Modifier;JLandroidx/compose/ui/graphics/Shape;)Landroidx/compose/ui/Modifier;",
+                )
+            }
+        }
+
+        // Home screen carousel slides (ConstraintLayout items: artwork + title + user as a unified card)
+        val carouselSlideClasses = listOf(
+            "Lcom/soundcloud/android/ui/components/listviews/playlist/CellSlidePlaylist;",
+            "Lcom/soundcloud/android/ui/components/listviews/track/CellSlideTrack;",
+            "Lcom/soundcloud/android/ui/components/listviews/user/CellSlideUser;",
+            "Lcom/soundcloud/android/ui/components/listviews/user/CellSlideUserWithAction;",
+        )
+        for (targetClass in carouselSlideClasses) {
+            val classDef = firstClassDef(targetClass)
+            val initMethod = classDef.methods.firstOrNull { it.name == "<init>" && it.parameterTypes.size == 3 } ?: continue
+            val iputIndex = initMethod.implementation?.instructions?.indexOfFirst {
+                it.opcode == Opcode.IPUT_OBJECT && it.fieldReference?.name == "b0"
+            } ?: -1
+            if (iputIndex >= 0) {
+                val inst = initMethod.getInstruction<TwoRegisterInstruction>(iputIndex)
+                val thisReg = inst.registerB
+                initMethod.addInstruction(
+                    iputIndex + 1,
+                    "invoke-static { v$thisReg }, $PANEL_CARDS->styleSlideCard(Landroid/view/View;)V",
+                )
+            }
+        }
+
+        // View-based action list items in Settings
+        val actionListViewClasses = listOf(
+            Pair("Lcom/soundcloud/android/ui/components/actionlists/ActionListItem;", "e0"),
+            Pair("Lcom/soundcloud/android/ui/components/actionlists/ActionListStandardWithHelp;", "b0"),
+            Pair("Lcom/soundcloud/android/ui/components/actionlists/ActionListToggle;", "b0"),
+            Pair("Lcom/soundcloud/android/ui/components/actionlists/ActionListToggleWithHelp;", "b0"),
+        )
+        for ((targetClass, fieldName) in actionListViewClasses) {
+            val classDef = firstClassDef(targetClass)
+            val initMethod = classDef.methods.firstOrNull { it.name == "<init>" && it.parameterTypes.size == 3 } ?: continue
+            val iputIndex = initMethod.implementation?.instructions?.indexOfFirst {
+                it.opcode == Opcode.IPUT_OBJECT && it.fieldReference?.name == fieldName
+            } ?: -1
+            if (iputIndex >= 0) {
+                val inst = initMethod.getInstruction<TwoRegisterInstruction>(iputIndex)
+                val thisReg = inst.registerB
+                initMethod.addInstruction(
+                    iputIndex + 1,
+                    "invoke-static { v$thisReg }, $PANEL_CARDS->styleLibraryRow(Landroid/view/View;)V",
+                )
+            }
+        }
+
         // View-based track cells (fallback when Views are used instead of Compose)
         val viewTrackClasses = listOf(
             "Lcom/soundcloud/android/ui/components/listviews/track/CellSmallTrack;",
@@ -561,16 +630,32 @@ val wallpaperSurfacesPatch = bytecodePatch {
         )
         for (targetClass in viewTrackClasses) {
             val classDef = firstClassDef(targetClass)
-            val nMethod = classDef.methods.firstOrNull { it.name == "n" } ?: continue
-            val setBgIndex = nMethod.implementation?.instructions?.indexOfFirst {
-                it.opcode == Opcode.INVOKE_VIRTUAL && it.methodReference?.name == "setBackgroundResource"
-            } ?: -1
-            if (setBgIndex >= 0) {
-                val viewReg = nMethod.getInstruction<FiveRegisterInstruction>(setBgIndex).registerC
-                nMethod.addInstruction(
-                    setBgIndex + 1,
-                    "invoke-static { v$viewReg }, $PANEL_CARDS->styleLibraryRow(Landroid/view/View;)V",
-                )
+            val initMethod = classDef.methods.firstOrNull { it.name == "<init>" && it.parameterTypes.size == 3 }
+            if (initMethod != null) {
+                val iputIndex = initMethod.implementation?.instructions?.indexOfFirst {
+                    it.opcode == Opcode.IPUT_OBJECT && it.fieldReference?.name == "b0"
+                } ?: -1
+                if (iputIndex >= 0) {
+                    val inst = initMethod.getInstruction<TwoRegisterInstruction>(iputIndex)
+                    val thisReg = inst.registerB
+                    initMethod.addInstruction(
+                        iputIndex + 1,
+                        "invoke-static { v$thisReg }, $PANEL_CARDS->styleLibraryRow(Landroid/view/View;)V",
+                    )
+                }
+            }
+            val nMethod = classDef.methods.firstOrNull { it.name == "n" }
+            if (nMethod != null) {
+                val setBgIndex = nMethod.implementation?.instructions?.indexOfFirst {
+                    it.opcode == Opcode.INVOKE_VIRTUAL && it.methodReference?.name == "setBackgroundResource"
+                } ?: -1
+                if (setBgIndex >= 0) {
+                    val viewReg = nMethod.getInstruction<FiveRegisterInstruction>(setBgIndex).registerC
+                    nMethod.addInstruction(
+                        setBgIndex + 1,
+                        "invoke-static { v$viewReg }, $PANEL_CARDS->styleLibraryRow(Landroid/view/View;)V",
+                    )
+                }
             }
         }
     }
