@@ -39,7 +39,7 @@ public final class PanelCards {
      */
     public static void styleLibraryRow(View row) {
         if (row == null) return;
-        if (!WallpaperStore.isActive()) return;
+        if (!WallpaperStore.isActive() || !Settings.isWallpaperCardsEnabled()) return;
 
         try {
             Context context = row.getContext();
@@ -71,14 +71,21 @@ public final class PanelCards {
                 card.setStroke(0, 0);
             }
 
-            row.setBackground(card);
+            android.graphics.drawable.Drawable backgroundDrawable = card;
+            if (android.os.Build.VERSION.SDK_INT >= 21) {
+                backgroundDrawable = new android.graphics.drawable.RippleDrawable(
+                        android.content.res.ColorStateList.valueOf(0x33FFFFFF), card, null);
+            }
+
+            row.setBackground(backgroundDrawable);
             row.setOutlineProvider(ViewOutlineProvider.BACKGROUND);
             row.setClipToOutline(true);
 
             ViewGroup.LayoutParams params = row.getLayoutParams();
             if (params instanceof ViewGroup.MarginLayoutParams) {
                 ViewGroup.MarginLayoutParams marginParams = (ViewGroup.MarginLayoutParams) params;
-                int hMargin = Dimens.dp(context, 14);
+                boolean isSlide = row.getClass().getSimpleName().contains("Slide");
+                int hMargin = Dimens.dp(context, isSlide ? 6 : 14);
                 int vMargin = Dimens.dp(context, 4);
                 if (marginParams.leftMargin != hMargin || marginParams.topMargin != vMargin) {
                     marginParams.leftMargin = hMargin;
@@ -94,13 +101,28 @@ public final class PanelCards {
 
     /**
      * Wraps a Compose Modifier into a rounded translucent card with border and margin
-     * according to user settings.
+     * according to user settings (standard full-width list row).
      *
      * @param modifierObj The incoming {@code androidx.compose.ui.Modifier} (may be null).
      * @return The card-wrapped {@code Modifier}.
      */
     public static Object wrapComposeCard(Object modifierObj) {
-        if (!WallpaperStore.isActive()) {
+        return wrapComposeCardInternal(modifierObj, 14.0f, 3.0f);
+    }
+
+    /**
+     * Wraps a Compose Modifier into a rounded translucent tile for carousels and grids
+     * with compact horizontal margins.
+     *
+     * @param modifierObj The incoming {@code androidx.compose.ui.Modifier} (may be null).
+     * @return The card-wrapped {@code Modifier}.
+     */
+    public static Object wrapComposeTile(Object modifierObj) {
+        return wrapComposeCardInternal(modifierObj, 4.0f, 4.0f);
+    }
+
+    private static Object wrapComposeCardInternal(Object modifierObj, float hMargin, float vMargin) {
+        if (!WallpaperStore.isActive() || !Settings.isWallpaperCardsEnabled()) {
             return modifierObj;
         }
 
@@ -131,8 +153,8 @@ public final class PanelCards {
                 strokeArgb = 0x44FFFFFF;
             }
 
-            // Outer margin: 14dp horizontal, 3dp vertical
-            Object padded = composePaddingMethod.invoke(null, modifierObj, 14.0f, 3.0f);
+            // Outer margin
+            Object padded = composePaddingMethod.invoke(null, modifierObj, hMargin, vMargin);
 
             // Shape: RoundedCornerShape(radius)
             Object shape = composeShapeMethod.invoke(null, (float) radius);

@@ -39,6 +39,7 @@ private fun MutableMethod.wrapComposeCardBefore(
     targetClass: String,
     targetMethod: String,
     paramIndex: Int = 0,
+    wrapMethod: String = "wrapComposeCard",
 ) {
     val callIndex = implementation?.instructions?.indexOfFirst {
         (it.opcode == Opcode.INVOKE_STATIC || it.opcode == Opcode.INVOKE_STATIC_RANGE) && it.methodReference?.let { ref ->
@@ -66,7 +67,7 @@ private fun MutableMethod.wrapComposeCardBefore(
     addInstructions(
         callIndex,
         """
-            invoke-static/range { v$modReg .. v$modReg }, $PANEL_CARDS->wrapComposeCard(Ljava/lang/Object;)Ljava/lang/Object;
+            invoke-static/range { v$modReg .. v$modReg }, $PANEL_CARDS->$wrapMethod(Ljava/lang/Object;)Ljava/lang/Object;
             move-result-object v$modReg
             check-cast v$modReg, Landroidx/compose/ui/Modifier;
         """,
@@ -524,31 +525,105 @@ val wallpaperSurfacesPatch = bytecodePatch {
                 "fillMaxWidth\$default",
             ),
             Triple(
-                "Lcom/soundcloud/android/ui/components/compose/listviews/track/CellSlideTrackKt;",
-                "Landroidx/compose/foundation/ClickableKt;",
-                "clickable-oSLSa3U\$default",
+                "Lcom/soundcloud/android/sections/ui/components/PlaylistViewKt;",
+                "Landroidx/compose/foundation/layout/SizeKt;",
+                "fillMaxWidth\$default",
+            ),
+            Triple(
+                "Lcom/soundcloud/android/sdui/components/composables/entities/PlaylistViewKt;",
+                "Landroidx/compose/foundation/layout/SizeKt;",
+                "fillMaxWidth\$default",
+            ),
+            Triple(
+                "Lcom/soundcloud/android/sdui/components/composables/entities/UserViewKt;",
+                "Landroidx/compose/foundation/layout/SizeKt;",
+                "fillMaxWidth\$default",
+            ),
+            Triple(
+                "Lcom/soundcloud/android/features/library/playlists/PlaylistCreateImportHeaderRendererKt;",
+                "Landroidx/compose/foundation/layout/SizeKt;",
+                "heightIn-VpY3zN4\$default",
             ),
         )
         for ((targetClass, callClass, callMethod) in listCellHooks) {
             val classDef = firstClassDef(targetClass)
             val method = classDef.methods.firstOrNull { it.name == "a" } ?: continue
-            method.wrapComposeCardBefore(callClass, callMethod, 0)
+            method.wrapComposeCardBefore(callClass, callMethod, 0, "wrapComposeCard")
         }
 
-        // View-based track cells (fallback when Views are used instead of Compose)
-        val viewTrackClasses = listOf(
+        val tileCellHooks = listOf(
+            Triple(
+                "Lcom/soundcloud/android/ui/components/compose/listviews/track/CellSlideTrackKt;",
+                "Landroidx/compose/foundation/layout/SizeKt;",
+                "width-3ABfNKs",
+            ),
+            Triple(
+                "Lcom/soundcloud/android/ui/components/compose/listviews/playlist/CellSlidePlaylistKt;",
+                "Landroidx/compose/foundation/layout/SizeKt;",
+                "width-3ABfNKs",
+            ),
+            Triple(
+                "Lcom/soundcloud/android/ui/components/compose/listviews/user/CellSlideUserKt;",
+                "Landroidx/compose/foundation/layout/SizeKt;",
+                "width-3ABfNKs",
+            ),
+            Triple(
+                "Lcom/soundcloud/android/sdui/components/composables/carousel/TileCarouselItemKt;",
+                "Landroidx/compose/foundation/layout/PaddingKt;",
+                "padding-VpY3zN4\$default",
+            ),
+            Triple(
+                "Lcom/soundcloud/android/sdui/components/composables/carousel/CardCarouselItemKt;",
+                "Landroidx/compose/foundation/layout/PaddingKt;",
+                "padding-VpY3zN4\$default",
+            ),
+            Triple(
+                "Lcom/soundcloud/android/sections/ui/components/user/CellTileUserKt;",
+                "Landroidx/compose/foundation/layout/PaddingKt;",
+                "padding-VpY3zN4\$default",
+            ),
+            Triple(
+                "Lcom/soundcloud/android/sections/ui/components/user/CellCardUserKt;",
+                "Landroidx/compose/foundation/layout/PaddingKt;",
+                "padding-VpY3zN4\$default",
+            ),
+            Triple(
+                "Lcom/soundcloud/android/sdui/components/composables/shortcuts/ShortcutItemKt;",
+                "Landroidx/compose/foundation/BackgroundKt;",
+                "background-bw27NRU",
+            ),
+        )
+        for ((targetClass, callClass, callMethod) in tileCellHooks) {
+            val classDef = firstClassDef(targetClass)
+            val method = classDef.methods.firstOrNull { it.name == "a" || it.name == "b" } ?: continue
+            method.wrapComposeCardBefore(callClass, callMethod, 0, "wrapComposeTile")
+        }
+
+        try {
+            val shortcutsClassDef = firstClassDef("Lcom/soundcloud/android/sections/ui/components/ShortcutsKt;")
+            shortcutsClassDef.methods.firstOrNull { it.name == "d" }
+                ?.wrapComposeCardBefore("Landroidx/compose/foundation/layout/SizeKt;", "fillMaxWidth\$default", 0, "wrapComposeTile")
+        } catch (_: Exception) {
+        }
+
+        // View-based cells (Playlist rows, track cells, and user items in classic RecyclerView lists)
+        val viewListClasses = listOf(
             "Lcom/soundcloud/android/ui/components/listviews/track/CellSmallTrack;",
             "Lcom/soundcloud/android/ui/components/listviews/track/CellMicroTrack;",
+            "Lcom/soundcloud/android/ui/components/listviews/playlist/CellSmallPlaylist;",
+            "Lcom/soundcloud/android/ui/components/listviews/playlist/CellMicroPlaylist;",
+            "Lcom/soundcloud/android/ui/components/listviews/playlist/CellSlidePlaylist;",
+            "Lcom/soundcloud/android/ui/components/listviews/user/CellMicroUser;",
         )
-        for (targetClass in viewTrackClasses) {
+        for (targetClass in viewListClasses) {
             val classDef = firstClassDef(targetClass)
             val nMethod = classDef.methods.firstOrNull { it.name == "n" } ?: continue
-            val setBgIndex = nMethod.implementation?.instructions?.indexOfFirst {
-                it.opcode == Opcode.INVOKE_VIRTUAL && it.methodReference?.name == "setBackgroundResource"
-            } ?: -1
-            if (setBgIndex >= 0) {
+            val returnIndices = nMethod.implementation?.instructions?.mapIndexedNotNull { index, inst ->
+                if (inst.opcode == Opcode.RETURN_VOID) index else null
+            }?.reversed() ?: emptyList()
+            for (retIdx in returnIndices) {
                 nMethod.addInstruction(
-                    setBgIndex + 1,
+                    retIdx,
                     "invoke-static { p0 }, $PANEL_CARDS->styleLibraryRow(Landroid/view/View;)V",
                 )
             }
